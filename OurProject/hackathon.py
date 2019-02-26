@@ -4,7 +4,36 @@ import time
 import getkeys
 
 
-def displayhelp(message_room):
+def sendmessage(webex_token, message_room, message):
+    HTTPHeaders = {"Authorization": webex_token,
+                   "Content-Type": "application/json"}
+    data_json = {"roomId": message_room,
+                 "text": message}
+    requests.post("https://api.ciscospark.com/v1/messages",
+                  data=json.dumps(data_json),
+                  headers=HTTPHeaders)
+
+
+def getnextmessage(webex_token, message_room, last_message):
+    while True:
+        getParams = {"roomId": listening_room, "max": 1}
+        webex_res = requests.get("https://api.ciscospark.com/v1/messages",
+                                 params=getParams,
+                                 headers={"Authorization": webex_token})
+        if not webex_res.status_code == 200:
+            raise Exception("Incorrect reply from Webex Teams API.\n"
+                            "Status code: {}.\n"
+                            "Text: {}".format(webex_res.status_code,
+                                              webex_res.text))
+        message_json = webex_res.json()
+        message = message_json["items"][0]["text"]
+        if message != last_message:
+            break
+        time.sleep(1)
+    return message
+
+
+def displayhelp(webex_token, message_room):
     webex_msg = "\nCommand help:\n\n" +\
                 "help - display help information\n" +\
                 "listrepos - show all your repositories\n" +\
@@ -12,42 +41,25 @@ def displayhelp(message_room):
                 "listcollabs - show collaborators on each repository\n" +\
                 "makerooms - make webex rooms for your repositories\n" +\
                 "deleterooms - delete webex rooms for your repositories"
-    print(webex_msg)
-    HTTPHeaders = {"Authorization": webex_token,
-                   "Content-Type": "application/json"}
-    data_json = {"roomId": message_room,
-                 "text": webex_msg}
-    requests.post("https://api.ciscospark.com/v1/messages",
-                  data=json.dumps(data_json),
-                  headers=HTTPHeaders)
+    sendmessage(webex_token, message_room, webex_msg)
 
 
 def listrepos(github_token, webex_token, message_room):
     repos_res = requests.get("https://api.github.com/user/repos",
                              headers={"Authorization": github_token})
-    print("Listing your repositories: ")
 
     github_json = repos_res.json()
     webex_msg = ""
 
     for repo in github_json:
-        print(repo["full_name"])
         webex_msg += repo["name"] + ": https://www.github.com/" +\
             repo["full_name"] + "\n"
-    HTTPHeaders = {"Authorization": webex_token,
-                   "Content-Type": "application/json"}
-    data_json = {"roomId": message_room,
-                 "text": webex_msg}
-    requests.post("https://api.ciscospark.com/v1/messages",
-                  data=json.dumps(data_json),
-                  headers=HTTPHeaders)
+    sendmessage(webex_token, message_room, webex_msg)
 
 
 def listcollaborators(github_token, webex_token, message_room):
     repos_res = requests.get("https://api.github.com/user/repos",
                              headers={"Authorization": github_token})
-    print("Listing your collaborators: ")
-
     repos_json = repos_res.json()
     webex_msg = ""
 
@@ -62,14 +74,8 @@ def listcollaborators(github_token, webex_token, message_room):
         for collab in collab_json:
             print("    https://github.com/" + collab["login"] + "\n")
             webex_msg += "    https://github.com/" + collab["login"] + "\n"
-    
-    HTTPHeaders = {"Authorization": webex_token,
-                   "Content-Type": "application/json"}
-    data_json = {"roomId": message_room,
-                 "text": webex_msg}
-    requests.post("https://api.ciscospark.com/v1/messages",
-                  data=json.dumps(data_json),
-                  headers=HTTPHeaders)
+
+    sendmessage(webex_token, message_room, webex_msg)
 
 
 def searchrepos(github_token, webex_token, message_room):
@@ -81,22 +87,7 @@ def searchrepos(github_token, webex_token, message_room):
     requests.post("https://api.ciscospark.com/v1/messages",
                   data=json.dumps(data_json),
                   headers=HTTPHeaders)
-    while True:
-        getParams = {"roomId": listening_room, "max": 1}
-        webex_res = requests.get("https://api.ciscospark.com/v1/messages",
-                                 params=getParams,
-                                 headers={"Authorization": webex_token})
-        if not webex_res.status_code == 200:
-            raise Exception("Incorrect reply from Webex Teams API.\n"
-                            "Status code: {}.\n"
-                            "Text: {}".format(webex_res.status_code,
-                                              webex_res.text))
-        message_json = webex_res.json()
-        query = message_json["items"][0]["text"]
-        if query != querytext:
-            break
-        time.sleep(1)
-    
+    query = getnextmessage(webex_token, message_room, querytext)
     query_res = requests.get("https://api.github.com/search/repositories",
                              params={"q": query},
                              headers={"Authorization": github_token})
@@ -106,54 +97,24 @@ def searchrepos(github_token, webex_token, message_room):
     for result in query_data["items"]:
         print(result["full_name"])
         webex_msg += "http://www.github.com/" + result["full_name"] + "\n"
-    
-    HTTPHeaders = {"Authorization": webex_token,
-                   "Content-Type": "application/json"}
-    data_json = {"roomId": message_room,
-                 "text": webex_msg}
-    requests.post("https://api.ciscospark.com/v1/messages",
-                  data=json.dumps(data_json),
-                  headers=HTTPHeaders)
+
+    sendmessage(webex_token, message_room, webex_msg)
 
 
 def makerooms(github_token, webex_token, message_room):
     repos_res = requests.get("https://api.github.com/user/repos",
                              headers={"Authorization": github_token})
-    print("Making rooms for your repositories: ")
-
     repos_json = repos_res.json()
     webex_msg = ""
 
     for repo in repos_json:
         confirmtext = "Do you want to make room " + repo["full_name"] +\
                       "? (y/n)"
-        HTTPHeaders = {"Authorization": webex_token,
-                       "Content-Type": "application/json"}
-        data_json = {"roomId": message_room,
-                     "text": confirmtext}
-        requests.post("https://api.ciscospark.com/v1/messages",
-                      data=json.dumps(data_json),
-                      headers=HTTPHeaders)
-        confirm = ""
-        while True:
-            getParams = {"roomId": listening_room, "max": 1}
-            webex_res = requests.get("https://api.ciscospark.com/v1/messages",
-                                     params=getParams,
-                                     headers={"Authorization": webex_token})
-            if not webex_res.status_code == 200:
-                raise Exception("Incorrect reply from Webex Teams API.\n"
-                                "Status code: {}.\n"
-                                "Text: {}".format(webex_res.status_code,
-                                                  webex_res.text))
-            message_json = webex_res.json()
-            confirm = message_json["items"][0]["text"]
-            if confirm == "y" or confirm == "Y" or\
-               confirm == "n" or confirm == "n":
-                break
-            time.sleep(1)
+        sendmessage(webex_token, message_room, confirmtext)
+
+        confirm = getnextmessage(webex_token, message_room, confirmtext)
 
         if confirm == "Y" or confirm == "y":
-            print("Making room: " + repo["full_name"])
             webex_msg += "Made room: " + repo["full_name"] + "\n"
         
             HTTPHeaders = {"Authorization": webex_token,
@@ -163,23 +124,15 @@ def makerooms(github_token, webex_token, message_room):
                                      data=json.dumps(data_json),
                                      headers=HTTPHeaders)
             if not make_res.status_code == 200:
-                print("Could not make room " + repo["full_name"])
+                webex_msg += "Could not make room " + repo["full_name"] + "\n"
+
     webex_msg += "Finished makerooms.\n"
-    HTTPHeaders = {"Authorization": webex_token,
-                   "Content-Type": "application/json"}
-    data_json = {"roomId": message_room,
-                 "text": webex_msg}
-    requests.post("https://api.ciscospark.com/v1/messages",
-                  data=json.dumps(data_json),
-                  headers=HTTPHeaders)
-    print("Finished makerooms.")
+    sendmessage(webex_token, message_room, webex_msg)
 
 
 def deleterooms(github_token, webex_token, message_room):
     repos_res = requests.get("https://api.github.com/user/repos",
                              headers={"Authorization": github_token})
-    print("Deleting rooms for your repositories: ")
-
     repos_json = repos_res.json()
     webex_msg = ""
 
@@ -191,50 +144,19 @@ def deleterooms(github_token, webex_token, message_room):
             if room["title"] == repo["full_name"]:
                 confirmtext = "Do you want to delete room " + room["title"] +\
                       "? (y/n)"
-                HTTPHeaders = {"Authorization": webex_token,
-                               "Content-Type": "application/json"}
-                data_json = {"roomId": message_room,
-                             "text": confirmtext}
-                requests.post("https://api.ciscospark.com/v1/messages",
-                              data=json.dumps(data_json),
-                              headers=HTTPHeaders)
+                sendmessage(webex_token, message_room, confirmtext)
                 
-                confirm = ""
-                while True:
-                    getParams = {"roomId": listening_room, "max": 1}
-                    webex_res = requests.get("https://api.ciscospark.com/v1/messages",
-                                             params=getParams,
-                                             headers={"Authorization": webex_token})
-                    if not webex_res.status_code == 200:
-                        raise Exception("Incorrect reply from Webex Teams API.\n"
-                                        "Status code: {}.\n"
-                                        "Text: {}".format(webex_res.status_code,
-                                                          webex_res.text))
-                    message_json = webex_res.json()
-                    confirm = message_json["items"][0]["text"]
-                    if confirm == "y" or confirm == "Y" or\
-                       confirm == "n" or confirm == "n":
-                        break
-                    time.sleep(1)
+                confirm = getnextmessage(webex_token, message_room, confirmtext)
 
                 if confirm == "Y" or confirm == "y":
-                    print("Deleting room: " + repo["full_name"])
-                    webex_msg += "Deleted room: " + repo["full_name"] + "\n"
-
                     HTTPHeaders = {"Authorization": webex_token,
                                    "Content-Type": "application/json"}
                     requests.delete("https://api.ciscospark.com/v1/rooms/" +
                                     room["id"],
-                                    headers=HTTPHeaders)              
+                                    headers=HTTPHeaders)
+                    webex_msg += "Deleted room: " + repo["full_name"] + "\n"
     webex_msg += "Finished deleterooms.\n"
-    HTTPHeaders = {"Authorization": webex_token,
-                   "Content-Type": "application/json"}
-    data_json = {"roomId": message_room,
-                 "text": webex_msg}
-    requests.post("https://api.ciscospark.com/v1/messages",
-                  data=json.dumps(data_json),
-                  headers=HTTPHeaders)
-    print("Finished deleterooms.")
+    sendmessage(webex_token, message_room, webex_msg)
 
 github_token = "Bearer "  # + input("Enter your github token")
 # REMOVE BEFORE PRODUCTION developer's github token
@@ -272,7 +194,7 @@ while listening_room is None:
     if listening_room is None:
         print("Sorry, I didn't find any room called " + home_room + ".\n"
               "Please try again.")
-displayhelp(listening_room)
+displayhelp(webex_token, listening_room)
 last_message_id = ""
 # main infinite loop
 while True:
@@ -302,7 +224,7 @@ while True:
             if message_text == "deleterooms":
                 deleterooms(github_token, webex_token, listening_room)
             if message_text == "help":
-                displayhelp(listening_room)
+                displayhelp(webex_token, listening_room)
             if message_text == "listcollabs":
                 listcollaborators(github_token, webex_token, listening_room)
             if message_text == "searchrepos":
