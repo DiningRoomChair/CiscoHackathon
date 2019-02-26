@@ -1,0 +1,4 @@
+APIKeys.txt
+*.pdf
+GoogleCredentials.json
+__pycache__
