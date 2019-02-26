@@ -3,6 +3,7 @@ import json
 import time
 import getkeys
 
+favourites = {}
 
 def sendmessage(webex_token, message_room, message):
     HTTPHeaders = {"Authorization": webex_token,
@@ -100,6 +101,19 @@ def searchrepos(github_token, webex_token, message_room):
 
     sendmessage(webex_token, message_room, webex_msg)
 
+def bookmarkRepos(github_token, webex_token, message_room):
+    starred_res = requests.get("https://api.github.com/user/starred", 
+                    headers={"Authorization": github_token})
+    github_json = starred_res.json()
+
+    webex_msg = ""
+    for starred in github_json:
+        name = starred["name"]
+        url = [starred["owner"]["starred_url"], starred["updated_at"]]
+        favourites.update({name: url})
+        webex_msg += name + "\n"
+    sendmessage(webex_token, message_room, webex_msg)
+    
 
 def makerooms(github_token, webex_token, message_room):
     repos_res = requests.get("https://api.github.com/user/repos",
@@ -229,5 +243,7 @@ while True:
                 listcollaborators(github_token, webex_token, listening_room)
             if message_text == "searchrepos":
                 searchrepos(github_token, webex_token, listening_room)
+            if message_text == "bookmarkrepos":
+                bookmarkRepos(github_token, webex_token, listening_room)
 
     time.sleep(1)
