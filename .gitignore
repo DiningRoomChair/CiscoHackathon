@@ -1,4 +1,7 @@
+*.zip
 APIKeys.txt
-*.pdf
+Ch1_Files/*.pdf
+Ch2_Files/*.pdf
+DevNetAcad Hackathon - GBC.pdf
 GoogleCredentials.json
 __pycache__
